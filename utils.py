@@ -3,11 +3,6 @@ import numpy as np
 import torch
 from sklearn.metrics import f1_score
 
-def map_labels(hazard_label_mapping, product_label_mapping, example):
-    hazard_label = hazard_label_mapping.get(example["hazard-category"], -1)
-    product_label = product_label_mapping.get(example["product-category"], -1)
-    return {"hazard_label": hazard_label, "product_label": product_label}
-
 def tokenize_function(examples):
     # Using only the title field for tokenization as specified
     tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
