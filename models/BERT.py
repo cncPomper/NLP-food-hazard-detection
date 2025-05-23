@@ -2,10 +2,13 @@ from dataset.dual_classification_dataset import DualClassificationDataset
 import torch
 import torch.nn as nn
 from transformers import AutoModel
-from time import time
+from datetime import datetime
+
 from datasets import load_dataset
 from utils import *
 from torch.utils.data import DataLoader
+
+import wandb
 
 import json
 
@@ -13,15 +16,16 @@ import os
 import gc
 
 class BERTWithDualHeads(nn.Module):
-    def __init__(self, bert_model_name, cfg):
+    def __init__(self, model_name, cfg):
         super().__init__()
         
         self.path = "https://github.com/food-hazard-detection-semeval-2025/food-hazard-detection-semeval-2025.github.io/blob/main/data/"
         
-        self.bert_model_name = bert_model_name
+        self.model_name = model_name
         self.cfg = cfg
-        
-        self.experiment_name = "bert_git"
+        now = datetime.now()
+        f = now.strftime("%Y-%m-%d_%H:%M:%S")
+        self.experiment_name = 'model_{}_{}'.format(cfg["exp_type"], f)
         
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         
@@ -30,6 +34,7 @@ class BERTWithDualHeads(nn.Module):
         
         self.data_files = {
             "train": os.path.join(self.path, "incidents_train.csv?raw=true"),
+            "valid": os.path.join(self.path, "incidents_valid.csv?raw=true"),
             "test": os.path.join(self.path, "incidents_test.csv?raw=true")
         }
         
@@ -49,10 +54,10 @@ class BERTWithDualHeads(nn.Module):
         self.create_dataloaders()
         self.create_model()
         self.create_optimizer()
-        self.create_loggers()                
+        self.create_loggers()
     
     def create_model(self):        
-        self.model = AutoModel.from_pretrained(self.bert_model_name)
+        self.model = AutoModel.from_pretrained(self.model_name)
         
         # Dropout for regularization
         self.dropout = nn.Dropout(0.1)
@@ -92,9 +97,10 @@ class BERTWithDualHeads(nn.Module):
         }
         
     def train(self, save_logs=True):
+        wandb.watch(self, log_freq=10)
+
         for epoch in range(self.cfg["epochs"]):
             # self.model.train()
-            print(f"Epoch {epoch+1}")
             total_loss = 0
                         
             for batch in self.train_loader:
@@ -106,9 +112,7 @@ class BERTWithDualHeads(nn.Module):
                 
                 # Forward pass
                 outputs = self.forward(input_ids=input_ids, attention_mask=attention_mask)
-                
-                # print(outputs)
-                
+                                
                 # Calculate loss
                 hazard_loss = self.loss_fn(outputs["hazard_logits"], hazard_labels)
                 product_loss = self.loss_fn(outputs["product_logits"], product_labels)
@@ -120,22 +124,25 @@ class BERTWithDualHeads(nn.Module):
                 self.optimizer.step()
                 
                 total_loss += loss.item()
+                
             
             avg_loss = total_loss / len(self.train_loader)
             self.train_loss_log.append(avg_loss)
-            print(f"Epoch {epoch+1}/{self.cfg['epochs']}, Loss: {avg_loss:.4f}")
             
             # Evaluate after each epoch
             val_epoch = (epoch + 1) % 2 == 0 or epoch == self.cfg['epochs'] - 1
-            if val_epoch:
-                self.handle_training_batches()
-
-                self.checkpoint()
+            final_score = self.handle_validation_batches()
+            # if val_epoch:
+            #     self.checkpoint()
+                
+            wandb.log({"Epoch": epoch, "loss": total_loss, "Avg_loss": avg_loss, "avg valid F1": final_score})
+            print(f"Epoch {epoch+1}/{self.cfg['epochs']}, Loss: {avg_loss:.4f}")
+            
         if save_logs:
             with open('./experiment_logs/{}_logs/{}.json'.format(self.cfg['exp_type'], self.experiment_name), 'w') as f:
                 json.dump({'train_loss_log': self.train_loss_log, 'val_loss_log': self.val_loss_log}, f)
     
-    def handle_training_batches(self):
+    def predict(self):
         self.model.eval()
         all_hazard_preds = []
         all_product_preds = []
@@ -143,6 +150,7 @@ class BERTWithDualHeads(nn.Module):
         all_product_true = []
         
         with torch.no_grad():
+            
             for batch in self.test_loader:
                 input_ids = batch["input_ids"].to(self.device)
                 attention_mask = batch["attention_mask"].to(self.device)
@@ -157,6 +165,67 @@ class BERTWithDualHeads(nn.Module):
                 all_product_preds.extend(product_preds)
                 all_hazard_true.extend(batch["hazard_label"].numpy())
                 all_product_true.extend(batch["product_label"].numpy())
+                
+        all_hazard_preds = np.array(all_hazard_preds)
+        all_product_preds = np.array(all_product_preds)
+        all_hazard_true = np.array(all_hazard_true)
+        all_product_true = np.array(all_product_true)
+        f1_hazard = f1_score(all_hazard_true, all_hazard_preds, average='macro')
+        correct_hazard_mask = all_hazard_preds == all_hazard_true
+        
+        if sum(correct_hazard_mask) > 0:
+            f1_product = f1_score(
+                all_product_true[correct_hazard_mask], 
+                all_product_preds[correct_hazard_mask], 
+                average='macro'
+            )
+        else:
+            f1_product = 0.0
+        
+        # Final score as per the requirement
+        final_score = (f1_hazard + f1_product) / 2
+        
+        return final_score
+        
+    def handle_validation_batches(self, is_valid=True):
+        self.model.eval()
+        all_hazard_preds = []
+        all_product_preds = []
+        all_hazard_true = []
+        all_product_true = []
+        
+        with torch.no_grad():
+            if is_valid:
+                for batch in self.valid_loader:
+                    input_ids = batch["input_ids"].to(self.device)
+                    attention_mask = batch["attention_mask"].to(self.device)
+                    
+                    outputs = self.forward(input_ids=input_ids, attention_mask=attention_mask)
+                    
+                    # Get predictions
+                    hazard_preds = torch.argmax(outputs["hazard_logits"], dim=1).cpu().numpy()
+                    product_preds = torch.argmax(outputs["product_logits"], dim=1).cpu().numpy()
+                    
+                    all_hazard_preds.extend(hazard_preds)
+                    all_product_preds.extend(product_preds)
+                    all_hazard_true.extend(batch["hazard_label"].numpy())
+                    all_product_true.extend(batch["product_label"].numpy())
+            else:
+                for batch in self.test_loader:
+                    input_ids = batch["input_ids"].to(self.device)
+                    attention_mask = batch["attention_mask"].to(self.device)
+                    
+                    outputs = self.forward(input_ids=input_ids, attention_mask=attention_mask)
+                    
+                    # Get predictions
+                    hazard_preds = torch.argmax(outputs["hazard_logits"], dim=1).cpu().numpy()
+                    product_preds = torch.argmax(outputs["product_logits"], dim=1).cpu().numpy()
+                    
+                    all_hazard_preds.extend(hazard_preds)
+                    all_product_preds.extend(product_preds)
+                    all_hazard_true.extend(batch["hazard_label"].numpy())
+                    all_product_true.extend(batch["product_label"].numpy())
+                
         
         # Convert to numpy arrays for easier manipulation
         all_hazard_preds = np.array(all_hazard_preds)
@@ -184,6 +253,8 @@ class BERTWithDualHeads(nn.Module):
         
         self.val_loss_log.append(final_score)
         
+        return final_score
+        
     
     def map_labels(self, example):
         hazard_label = self.hazard_label_mapping.get(example["hazard-category"], -1)
@@ -198,7 +269,10 @@ class BERTWithDualHeads(nn.Module):
         # flushing down the previous loaders and related variables
         gc.collect()
         
-        self.dataset = load_dataset("csv", data_files=self.data_files)
+        self.dataset = load_dataset("csv", data_files=self.data_files, column_names=['year', 'month', 'day', 'country', 'title', 'text', 'hazard-category', 'product-category', 'hazard', 'product'])
+        
+        for type_dataset in self.data_files.keys():
+            self.dataset[type_dataset][1:]['text'] = [' '.join(''.join(text.split(' ')).split('\n')) for text in self.dataset[type_dataset][1:]['text']]
         
         self.hazard_categories = self.dataset["train"].unique("hazard-category")
         self.product_categories = self.dataset["train"].unique("product-category")
@@ -218,6 +292,7 @@ class BERTWithDualHeads(nn.Module):
         tokenized_datasets = self.dataset.map(tokenize_function, batched=True)
         
         self.train_dataset = DualClassificationDataset(tokenized_datasets["train"])
+        self.valid_dataset = DualClassificationDataset(tokenized_datasets["valid"])
         self.test_dataset = DualClassificationDataset(tokenized_datasets["test"])
         # print(self.cfg)
         # DataLoaders
@@ -225,6 +300,11 @@ class BERTWithDualHeads(nn.Module):
             self.train_dataset, 
             batch_size=self.cfg["batch_size"], 
             shuffle=True
+        )
+        
+        self.valid_loader = DataLoader(
+            self.valid_dataset, 
+            batch_size=self.cfg["batch_size"]
         )
 
         self.test_loader = DataLoader(
@@ -237,7 +317,7 @@ class BERTWithDualHeads(nn.Module):
         Function to determine whether to save the current model.
         If the current mean average precision is 0.001 higher than the best value, the model is saved.
         """
-        print(self.val_loss_log)
+        # print(self.val_loss_log)
         if self.val_loss_log[-1] >= self.best_f1 + 1e-3:
 
             torch.save(self.model.state_dict(),
