@@ -60,7 +60,7 @@ def main(run_type, cfg):
 if __name__ == '__main__':
     path = pathlib.Path(__file__).parent.absolute()
 
-    parser = argparse.ArgumentParser(description='Training and evaluation code for Re-MOVE experiments.')
+    parser = argparse.ArgumentParser(description='Training and evaluation code for NLP experiments.')
     parser.add_argument('-rt',
                         '--run_type',
                         type=str,
