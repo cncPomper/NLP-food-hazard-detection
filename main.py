@@ -8,26 +8,50 @@ import os
 import pandas as pd
 import pathlib
 
+from datetime import datetime
+
+import wandb
+
+# print(f"Login is {wandb.login()}")
 
 def main(run_type, cfg):
-    
+    # model_pretrained = "bert-large-uncased"
+    model_pretrained = "bert-base-uncased"
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        
     if run_type == 'train':
         # Initialize model
-        print("Initializing model...")
-        trainer = BERTWithDualHeads("bert-base-uncased", cfg)
+        wandb.init(project="NLP", name=f"{model_pretrained}-{cfg['learning_rate']}-{cfg['epochs']}-{cfg['batch_size']}")
         
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print("Initializing model...")
+        
+        trainer = BERTWithDualHeads(model_pretrained, cfg)
+        print(trainer.train_loader)
+        
         print(f"Using device: {device}")
-
+                
         trainer.to(device)
                 
         # Train model
         print("Training model...")
         trainer.train()
         
+        
         print("Saving model...")
-        # torch.save(trainer.state_dict(), os.path.join(path, "bert_food_hazard_model.pt"))
+        now = datetime.now()
+        f = now.strftime("%Y-%m-%d_%H:%M:%S")
+        torch.save(trainer.state_dict(), os.path.join(cfg['main_path'], 'saved_models', f"bert_large_model_{f}.pt"))
     elif run_type == 'test':
+        model = BERTWithDualHeads(model_pretrained, cfg)
+        model_name = os.path.join(cfg['main_path'], 'saved_models', f"{cfg['test_file']}")
+        print(model_name)
+        print("Loading from model...")
+        model.load_state_dict(torch.load(model_name, map_location='cpu'))
+        model.to(device)
+
+        print("Testing model...")
+        f1 = model.predict()
+        print(f"F1-score: {f1}")
         # evaluate(experiment_name, cfg['exp_type'], cfg['main_path'], cfg['emb_size'], cfg['loss'])
         pass
     else:
@@ -41,7 +65,7 @@ if __name__ == '__main__':
                         '--run_type',
                         type=str,
                         default='train',
-                        choices=['train'],
+                        choices=['train', 'test'],
                         help='Whether to run the training or the evaluation script.')
     parser.add_argument('-mp',
                         '--main_path',
@@ -68,15 +92,22 @@ if __name__ == '__main__':
                         type=float,
                         default=None,
                         help='Base learning rate for the optimizer')
+    parser.add_argument('-tf',
+                        '--test_file',
+                        type=float,
+                        default=None,
+                        help='Test file from a model')
 
     args = parser.parse_args()
     
     with open(os.path.join(path, 'config.json')) as f:
         cfg = json.load(f)
         
+    print(cfg)
+        
     for key in args.__dict__.keys():
         if getattr(args, key) is None:
             setattr(args, key, cfg[key])
-        
+    print(args)    
     main(args.run_type, args.__dict__)
     # print(torch.cuda.is_available())
