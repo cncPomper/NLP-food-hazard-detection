@@ -131,60 +131,20 @@ class BERTWithDualHeads(nn.Module):
             
             # Evaluate after each epoch
             val_epoch = (epoch + 1) % 2 == 0 or epoch == self.cfg['epochs'] - 1
-            final_score = self.handle_validation_batches()
             # if val_epoch:
             #     self.checkpoint()
                 
-            wandb.log({"Epoch": epoch, "loss": total_loss, "Avg_loss": avg_loss, "avg valid F1": final_score})
+            wandb.log({"Epoch": epoch, "loss": total_loss, "Avg_loss": avg_loss})
             print(f"Epoch {epoch+1}/{self.cfg['epochs']}, Loss: {avg_loss:.4f}")
             
+        final_score = self.handle_validation_batches()
+        wandb.log({"Valid F1": final_score})
         if save_logs:
             with open('./experiment_logs/{}_logs/{}.json'.format(self.cfg['exp_type'], self.experiment_name), 'w') as f:
                 json.dump({'train_loss_log': self.train_loss_log, 'val_loss_log': self.val_loss_log}, f)
     
     def predict(self):
-        self.model.eval()
-        all_hazard_preds = []
-        all_product_preds = []
-        all_hazard_true = []
-        all_product_true = []
-        
-        with torch.no_grad():
-            
-            for batch in self.test_loader:
-                input_ids = batch["input_ids"].to(self.device)
-                attention_mask = batch["attention_mask"].to(self.device)
-                
-                outputs = self.forward(input_ids=input_ids, attention_mask=attention_mask)
-                
-                # Get predictions
-                hazard_preds = torch.argmax(outputs["hazard_logits"], dim=1).cpu().numpy()
-                product_preds = torch.argmax(outputs["product_logits"], dim=1).cpu().numpy()
-                
-                all_hazard_preds.extend(hazard_preds)
-                all_product_preds.extend(product_preds)
-                all_hazard_true.extend(batch["hazard_label"].numpy())
-                all_product_true.extend(batch["product_label"].numpy())
-                
-        all_hazard_preds = np.array(all_hazard_preds)
-        all_product_preds = np.array(all_product_preds)
-        all_hazard_true = np.array(all_hazard_true)
-        all_product_true = np.array(all_product_true)
-        f1_hazard = f1_score(all_hazard_true, all_hazard_preds, average='macro')
-        correct_hazard_mask = all_hazard_preds == all_hazard_true
-        
-        if sum(correct_hazard_mask) > 0:
-            f1_product = f1_score(
-                all_product_true[correct_hazard_mask], 
-                all_product_preds[correct_hazard_mask], 
-                average='macro'
-            )
-        else:
-            f1_product = 0.0
-        
-        # Final score as per the requirement
-        final_score = (f1_hazard + f1_product) / 2
-        
+        final_score = self.handle_validation_batches(is_valid=False)
         return final_score
         
     def handle_validation_batches(self, is_valid=True):
