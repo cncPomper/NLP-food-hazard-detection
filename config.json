@@ -1,2 +1,2 @@
-{ "learning_rate": 2e-5, "epochs": 10, "batch_size": 16, "num_workers": 0, "exp_type": "bert_large", "test_file": "bert_large_model_2025-05-23_13:24:32.pt", "val_file": "./bert_food_hazard_model.pt", "main_path": "~/" }
+{ "learning_rate": 1e-5, "epochs": 10, "batch_size": 16, "num_workers": 0, "exp_type": "bert_large", "test_file": "bert_large_model_2025-05-23_13:24:32.pt", "val_file": "./bert_food_hazard_model.pt", "main_path": "~/" }
  

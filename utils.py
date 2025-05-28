@@ -3,16 +3,16 @@ import numpy as np
 import torch
 from sklearn.metrics import f1_score
 
-def tokenize_function(examples):
-    # Using only the title field for tokenization as specified
-    tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
+# def tokenize_function(examples):
+#     # Using only the title field for tokenization as specified
+#     tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
     
-    return tokenizer(
-        examples["title"],
-        padding="max_length",
-        truncation=True,
-        max_length=128  # As specified in requirements
-    )
+#     return tokenizer(
+#         examples["title"],
+#         padding="max_length",
+#         truncation=True,
+#         max_length=128  # As specified in requirements
+#     )
     
 def import_dataset_from_pt():
     pass
