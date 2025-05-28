@@ -4,7 +4,7 @@ Authors: Michał Kaczmaryk, Hubert Podlewski i Piotr Kitłowski
 
 ## Usage
 ```bash
-usage: main.py [-h] [-rt {train,test}] [-mp MAIN_PATH] [--exp_type {bert}] [-noe EPOCHS] [-bs BATCH_SIZE] [-lr LEARNING_RATE] [-tf TEST_FILE]
+usage: main.py [-h] [-rt {train,test}] [-mp MAIN_PATH] [--exp_type {bert,bert_large,qwen}] [-noe EPOCHS] [-bs BATCH_SIZE] [-lr LEARNING_RATE] [-tf TEST_FILE]
 
 Training and evaluation code for NLP experiments.
 
@@ -14,7 +14,8 @@ optional arguments:
                         Whether to run the training or the evaluation script.
   -mp MAIN_PATH, --main_path MAIN_PATH
                         Path to the working directory.
-  --exp_type {bert}     Type of experiment to run.
+  --exp_type {bert,bert_large,qwen}
+                        Type of experiment to run.
   -noe EPOCHS, --epochs EPOCHS
                         Number of epochs for training.
   -bs BATCH_SIZE, --batch_size BATCH_SIZE
