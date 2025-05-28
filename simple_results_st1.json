@@ -1,0 +1,43 @@
+{
+  "task": "ST1",
+  "method": "TF-IDF + LogReg with Class Weights",
+  "config": {
+    "st1_task": true,
+    "use_bert": false,
+    "max_features": 10000,
+    "test_bert_loading": false
+  },
+  "data_stats": {
+    "train_size": 5082,
+    "valid_size": 565,
+    "test_size": 997,
+    "hazard_classes": 10,
+    "product_classes": 22,
+    "hazard_imbalance": 618.0,
+    "product_imbalance": 286.8
+  },
+  "results": {
+    "validation": {
+      "f1_hazards": 0.6891744617848621,
+      "f1_products": 0.5334669494365919,
+      "final_score": 0.611320705610727
+    },
+    "test": {
+      "f1_hazards": 0.6172828074437084,
+      "f1_products": 0.5782720143805524,
+      "final_score": 0.5977774109121304
+    },
+    "baseline": {
+      "f1_hazards": 0.05359765051395007,
+      "f1_products": 0.016846175089754212,
+      "final_score": 0.03522191280185214
+    },
+    "improvement": 0.5625554981102783
+  },
+  "competition_comparison": {
+    "competition_best": 0.8223,
+    "competition_bert": 0.667,
+    "our_result": 0.5977774109121304,
+    "gap_to_best": 0.2245225890878696
+  }
+}
