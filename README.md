@@ -26,7 +26,7 @@ optional arguments:
                         Test file from a model
 ```
 
-## Step 0
+## Installation
 ```bash
 git clone git@github.com:cncPomper/NLP-food-hazard-detection.git
 ```
@@ -41,3 +41,10 @@ conda activate nlp
 pip install -r requirements.txt
 ```
 
+## Training
+```bash
+python main.py -rt train --exp_type qwen -noe 5
+```
+
+## Notebooks
+Everything is explained in the folder `/notebooks`
