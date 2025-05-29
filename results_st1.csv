@@ -1,2 +1,0 @@
-Task,Features,Method,Validation_F1_Hazard,Validation_F1_Product,Validation_Final_Score,Test_F1_Hazard,Test_F1_Product,Test_Final_Score,Baseline_Score,Improvement
-ST1,Title + Text,TF-IDF + Logistic Regression with Class Weights,0.6892,0.5335,0.6113,0.6173,0.5783,0.5978,0.0352,0.5626
